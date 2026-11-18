@@ -15,7 +15,7 @@
   "date": "26/11/2026",
   "deadline": "20/11/2026",
   "seats": "64",
-  "available": true
+  "available": false
  },
  "CENT@HOME|Sapienza Università di Roma|26/11/2026": {
   "fmt": "CENT@HOME",
