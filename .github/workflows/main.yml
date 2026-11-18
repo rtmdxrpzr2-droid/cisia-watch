@@ -40,6 +40,13 @@ jobs:
           test -n "$TELEGRAM_TOKEN" || (echo "Missing TELEGRAM_TOKEN" && exit 1)
           test -n "$TELEGRAM_CHAT_ID" || (echo "Missing TELEGRAM_CHAT_ID" && exit 1)
 
+      - name: Send Telegram test message
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python -c "import os,requests; r=requests.post('https://api.telegram.org/bot'+os.environ['TELEGRAM_TOKEN']+'/sendMessage',data={'chat_id':os.environ['TELEGRAM_CHAT_ID'],'text':'🇮🇹 CISIA WATCHER AKTIF!\n\nCENT@UNI takip sistemi basariyla baslatildi.\nYeni sinav tarihleri ve acilan kontenjanlar takip ediliyor. 🏎️'},timeout=30); r.raise_for_status(); assert r.json()['ok'], r.text; print('Telegram test sent successfully')"
+
       - name: Run CISIA watcher
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
