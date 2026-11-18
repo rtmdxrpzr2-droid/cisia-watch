@@ -87,6 +87,6 @@
   "date": "12/01/2027",
   "deadline": "06/01/2027",
   "seats": "---",
-  "available": false
+  "available": true
  }
 }
