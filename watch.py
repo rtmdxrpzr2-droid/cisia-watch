@@ -38,15 +38,15 @@ def wanted(r):
         return any(w in name for w in WATCH_UNIVERSITIES)
     return True
 
-
 def notify(text):
     token = os.environ["TELEGRAM_TOKEN"]
     chat = os.environ["TELEGRAM_CHAT_ID"]
-    requests.post(
+    resp = requests.post(
         f"https://api.telegram.org/bot{token}/sendMessage",
         data={"chat_id": chat, "text": text, "disable_web_page_preview": True},
         timeout=30,
     )
+    resp.raise_for_status()
 
 
 def to_int(s):
