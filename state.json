@@ -1,0 +1,92 @@
+{
+ "CENT@UNI|Universita' degli studi di Trieste|26/11/2026": {
+  "fmt": "CENT@UNI",
+  "uni": "Universita' degli studi di Trieste",
+  "city": "TRIESTE",
+  "date": "26/11/2026",
+  "deadline": "20/11/2026",
+  "seats": "76",
+  "available": true
+ },
+ "CENT@UNI|Universita' degli studi di Messina|26/11/2026": {
+  "fmt": "CENT@UNI",
+  "uni": "Universita' degli studi di Messina",
+  "city": "MESSINA",
+  "date": "26/11/2026",
+  "deadline": "20/11/2026",
+  "seats": "65",
+  "available": true
+ },
+ "CENT@HOME|Sapienza Università di Roma|26/11/2026": {
+  "fmt": "CENT@HOME",
+  "uni": "Sapienza Università di Roma",
+  "city": "ROMA",
+  "date": "26/11/2026",
+  "deadline": "20/11/2026",
+  "seats": "---",
+  "available": false
+ },
+ "CENT@HOME|Politecnico di Milano|26/11/2026": {
+  "fmt": "CENT@HOME",
+  "uni": "Politecnico di Milano",
+  "city": "MILANO",
+  "date": "26/11/2026",
+  "deadline": "20/11/2026",
+  "seats": "---",
+  "available": false
+ },
+ "CENT@HOME|Università degli studi di Padova|26/11/2026": {
+  "fmt": "CENT@HOME",
+  "uni": "Università degli studi di Padova",
+  "city": "PADOVA",
+  "date": "26/11/2026",
+  "deadline": "20/11/2026",
+  "seats": "---",
+  "available": false
+ },
+ "CENT@HOME|Università degli studi di Teramo|26/11/2026": {
+  "fmt": "CENT@HOME",
+  "uni": "Università degli studi di Teramo",
+  "city": "TERAMO",
+  "date": "26/11/2026",
+  "deadline": "20/11/2026",
+  "seats": "---",
+  "available": false
+ },
+ "CENT@HOME|Università Ca' Foscari Venezia|26/11/2026": {
+  "fmt": "CENT@HOME",
+  "uni": "Università Ca' Foscari Venezia",
+  "city": "VENEZIA",
+  "date": "26/11/2026",
+  "deadline": "20/11/2026",
+  "seats": "---",
+  "available": false
+ },
+ "CENT@UNI|Universita' degli studi di Messina|17/12/2026": {
+  "fmt": "CENT@UNI",
+  "uni": "Universita' degli studi di Messina",
+  "city": "MESSINA",
+  "date": "17/12/2026",
+  "deadline": "11/12/2026",
+  "seats": "36",
+  "available": true
+ },
+ "CENT@HOME|Sapienza Università di Roma|17/12/2026": {
+  "fmt": "CENT@HOME",
+  "uni": "Sapienza Università di Roma",
+  "city": "ROMA",
+  "date": "17/12/2026",
+  "deadline": "11/12/2026",
+  "seats": "---",
+  "available": false
+ },
+ "CENT@UNI|Politecnico di Torino|12/01/2027": {
+  "fmt": "CENT@UNI",
+  "uni": "Politecnico di Torino",
+  "city": "TORINO",
+  "date": "12/01/2027",
+  "deadline": "06/01/2027",
+  "seats": "---",
+  "available": false
+ }
+}
