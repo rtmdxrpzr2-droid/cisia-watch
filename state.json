@@ -5,7 +5,7 @@
   "city": "TRIESTE",
   "date": "26/11/2026",
   "deadline": "20/11/2026",
-  "seats": "70",
+  "seats": "71",
   "available": true
  },
  "CENT@UNI|Universita' degli studi di Messina|26/11/2026": {
@@ -32,7 +32,7 @@
   "city": "MILANO",
   "date": "26/11/2026",
   "deadline": "20/11/2026",
-  "seats": "47",
+  "seats": "9",
   "available": true
  },
  "CENT@HOME|Università degli studi di Padova|26/11/2026": {
@@ -41,8 +41,8 @@
   "city": "PADOVA",
   "date": "26/11/2026",
   "deadline": "20/11/2026",
-  "seats": "---",
-  "available": false
+  "seats": "1",
+  "available": true
  },
  "CENT@HOME|Università degli studi di Teramo|26/11/2026": {
   "fmt": "CENT@HOME",
