@@ -5,7 +5,7 @@
   "city": "TRIESTE",
   "date": "26/11/2026",
   "deadline": "20/11/2026",
-  "seats": "74",
+  "seats": "75",
   "available": true
  },
  "CENT@UNI|Universita' degli studi di Messina|26/11/2026": {
@@ -79,6 +79,15 @@
   "deadline": "11/12/2026",
   "seats": "---",
   "available": false
+ },
+ "CENT@HOME|Politecnico di Milano|17/12/2026": {
+  "fmt": "CENT@HOME",
+  "uni": "Politecnico di Milano",
+  "city": "MILANO",
+  "date": "17/12/2026",
+  "deadline": "11/12/2026",
+  "seats": "121",
+  "available": true
  },
  "CENT@UNI|Politecnico di Torino|12/01/2027": {
   "fmt": "CENT@UNI",
