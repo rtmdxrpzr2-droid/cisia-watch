@@ -50,8 +50,8 @@
   "city": "TERAMO",
   "date": "26/11/2026",
   "deadline": "20/11/2026",
-  "seats": "3",
-  "available": true
+  "seats": "---",
+  "available": false
  },
  "CENT@HOME|Università Ca' Foscari Venezia|26/11/2026": {
   "fmt": "CENT@HOME",
