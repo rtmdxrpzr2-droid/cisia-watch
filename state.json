@@ -32,8 +32,8 @@
   "city": "MILANO",
   "date": "26/11/2026",
   "deadline": "20/11/2026",
-  "seats": "---",
-  "available": false
+  "seats": "47",
+  "available": true
  },
  "CENT@HOME|Università degli studi di Padova|26/11/2026": {
   "fmt": "CENT@HOME",
