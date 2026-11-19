@@ -59,8 +59,8 @@
   "city": "VENEZIA",
   "date": "26/11/2026",
   "deadline": "20/11/2026",
-  "seats": "---",
-  "available": false
+  "seats": "1",
+  "available": true
  },
  "CENT@UNI|Universita' degli studi di Messina|17/12/2026": {
   "fmt": "CENT@UNI",
