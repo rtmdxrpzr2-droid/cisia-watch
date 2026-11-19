@@ -14,7 +14,7 @@
   "city": "MESSINA",
   "date": "26/11/2026",
   "deadline": "20/11/2026",
-  "seats": "63",
+  "seats": "62",
   "available": true
  },
  "CENT@HOME|Sapienza Università di Roma|26/11/2026": {
@@ -23,8 +23,8 @@
   "city": "ROMA",
   "date": "26/11/2026",
   "deadline": "20/11/2026",
-  "seats": "16",
-  "available": true
+  "seats": "---",
+  "available": false
  },
  "CENT@HOME|Politecnico di Milano|26/11/2026": {
   "fmt": "CENT@HOME",
