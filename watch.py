@@ -22,6 +22,8 @@ NEAR_FULL = 5
 # gelmesi tekrar tekrar mesaj atmasin diye).
 LOW_SEATS = 10
 LOW_RESET = 15
+# Acik bir sinavin son basvurusuna bu kadar gun kala bir kez hatirlatma gider.
+REMIND_DAYS = 2
 
 # Her calisma LOOP_SECONDS boyunca acik kalir ve siteye INTERVAL saniyede bir bakar.
 LOOP_SECONDS = int(os.environ.get("LOOP_SECONDS", "0"))
@@ -61,6 +63,8 @@ def fetch_rows():
         r = {
             "fmt": fmt, "uni": uni, "city": city, "date": date,
             "deadline": deadline, "available": available,
+            # Kapaliysa neden: koltuklar doldu mu, basvuru suresi mi bitti?
+            "closed": None if available else ("full" if "NOT LONGER" in status else "closed"),
             # Koltuk sayisi sadece basvuru acikken anlamli. Kapaliyken
             # saklamiyoruz; boylece anlamsiz dalgalanmalar commit uretmiyor.
             "seats": seats if available else None,
@@ -117,13 +121,17 @@ def to_int(s):
         return None
 
 
-def days_left(date_str):
+def days_until(date_str):
     try:
         d = datetime.strptime(date_str.strip(), "%d/%m/%Y").date()
     except ValueError:
-        return ""
-    n = (d - now().date()).days
-    if n < 0:
+        return None
+    return (d - now().date()).days
+
+
+def days_left(date_str):
+    n = days_until(date_str)
+    if n is None or n < 0:
         return ""
     if n == 0:
         return " (⚠️ bugün son gün!)"
@@ -152,10 +160,19 @@ def card(title, r, extra_lines=(), footer=None):
 def message_for(r, old):
     """Satir icin gonderilecek mesaji dondurur (yoksa None).
     r["low_alerted"] bayragini da gunceller: "son koltuklar" uyarisi bir kez gitsin diye."""
+    if old and old.get("deadline_reminded"):
+        r["deadline_reminded"] = True
+
     if not r["available"]:
         if old is None:
             return card("🆕 Yeni sınav tarihi eklendi", r, ["🔒 Henüz başvuru açık değil"],
                         "Başvuru açılınca tekrar haber vereceğim.")
+        if old["available"]:
+            if r.get("closed") == "full":
+                return card("❌ DOLDU", r, ["💺 Boş koltuk kalmadı"],
+                            "İptal olup yer açılırsa hemen haber vereceğim.")
+            return card("🔒 Başvurular kapandı", r, [],
+                        "Bu sınavın başvuru dönemi sona erdi.")
         return None
 
     n = to_int(r["seats"])
@@ -168,6 +185,12 @@ def message_for(r, old):
 
     seats = f"💺 Boş koltuk: <b>{esc(r['seats'])}</b>"
     hurry = [f"🔥 <b>Son {n} koltuk!</b>"] if low else []
+
+    left = days_until(r["deadline"])
+    in_remind_window = left is not None and 0 <= left <= REMIND_DAYS
+    if in_remind_window and (old is None or not old["available"]):
+        # Acilis mesaji zaten kalan gunu gosteriyor; ayrica hatirlatma gonderme.
+        r["deadline_reminded"] = True
 
     if old is None:
         return card("🚨 YENİ BAŞVURU AÇILDI!", r, [seats, *hurry],
@@ -184,6 +207,13 @@ def message_for(r, old):
     if low and not already_low:
         return card(f"⏰ SON {n} KOLTUK!", r, [seats],
                     "Bu sınav dolmak üzere. Başvurmayı düşünüyorsan şimdi tam zamanı!")
+
+    # Son basvuruya REMIND_DAYS gun kala, sabah saatinden sonra bir kez hatirlat.
+    if in_remind_window and not r.get("deadline_reminded") and now().hour >= DAILY_HOUR:
+        r["deadline_reminded"] = True
+        when = "Bugün son gün!" if left == 0 else f"Son başvuruya {left} gün kaldı"
+        return card(f"⏳ {when}", r, [seats, *hurry],
+                    "Başvurmayı düşünüyorsan erteleme.")
     return None
 
 
