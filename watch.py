@@ -162,11 +162,15 @@ def message_for(r, old):
     r["low_alerted"] bayragini da gunceller: "son koltuklar" uyarisi bir kez gitsin diye."""
     if old and old.get("deadline_reminded"):
         r["deadline_reminded"] = True
+    # Bu sinavda basvuru daha once hic acik goruldu mu? Ilk acilis ile
+    # dolduktan sonra iptalle yer acilmasini ayirt etmek icin.
+    if r["available"] or (old and (old.get("seen_open") or old["available"])):
+        r["seen_open"] = True
 
     if not r["available"]:
         if old is None:
-            return card("🆕 Yeni sınav tarihi eklendi", r, ["🔒 Henüz başvuru açık değil"],
-                        "Başvuru açılınca tekrar haber vereceğim.")
+            return card("🆕 Yeni sınav tarihi eklendi", r, ["🔒 Şu an başvuruya kapalı"],
+                        "Başvuru açılınca hemen haber vereceğim.")
         if old["available"]:
             if r.get("closed") == "full":
                 return card("❌ DOLDU", r, ["💺 Boş koltuk kalmadı"],
@@ -196,6 +200,9 @@ def message_for(r, old):
         return card("🚨 YENİ BAŞVURU AÇILDI!", r, [seats, *hurry],
                     "Koltuklar hızlı doluyor, acele et!")
     if not old["available"]:
+        if not old.get("seen_open"):
+            return card("🚨 BAŞVURULAR AÇILDI!", r, [seats, *hurry],
+                        "Koltuklar hızlı doluyor, acele et!")
         return card("🔔 KOLTUK AÇILDI!", r, [seats, *hurry],
                     "Bir iptal olmuş olabilir, hızlı ol!")
 
@@ -252,7 +259,17 @@ def check(state):
     prev = state["rows"]
     new_rows = dict(rows)
     for key, r in rows.items():
-        msg = message_for(r, prev.get(key))
+        try:
+            msg = message_for(r, prev.get(key))
+        except Exception as e:
+            # Beklenmedik bir satir tum takibi durdurmasin; bu satiri sonra tekrar dene.
+            print("row error:", key, repr(e))
+            msg = None
+            if key in prev:
+                new_rows[key] = prev[key]
+            else:
+                del new_rows[key]
+            continue
         if msg and not try_notify(msg):
             # Bildirim gitmediyse eski durumu koru: sonraki kontrolde tekrar denenir.
             if key in prev:
@@ -331,7 +348,12 @@ def main():
     deadline = time.monotonic() + LOOP_SECONDS
     while True:
         started = time.monotonic()
-        check(state)
+        try:
+            check(state)
+        except Exception as e:
+            # Hicbir hata dongunun tamamini cokertmesin; kesinti olarak say.
+            print("check crashed:", repr(e))
+            record_failure(state["health"], e)
         if not state["health"].get("fail_since"):
             daily_summary(state)
         save_state(state)
