@@ -36,7 +36,7 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           # Her calisma ~4.5 dk acik kalip siteye 30 sn'de bir bakar.
           # Siten 5 dk'da bir tetikledigi icin calismalar art arda zincirlenir.
-          LOOP_SECONDS: "270"
+          LOOP_SECONDS: "280"
           INTERVAL: "30"
         run: python watch.py
 
