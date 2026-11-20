@@ -384,12 +384,6 @@ def main():
         print("initialized state")
         return
 
-    if os.environ.get("TEST_DAILY") == "true":
-        # GECICI: sabah ozetini simdi test olarak gonder; state'e dokunma.
-        notify("🧪 <i>Test mesajı</i>\n\n" + "\n".join(summary_lines(fetch_rows())), button=False)
-        print("test daily summary sent")
-        return
-
     deadline = time.monotonic() + LOOP_SECONDS
     while True:
         started = time.monotonic()

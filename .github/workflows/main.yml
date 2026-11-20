@@ -2,11 +2,6 @@ name: CISIA Watcher
 
 on:
   workflow_dispatch:
-    inputs:
-      test_daily:
-        description: "Gunaydin test mesaji gonder"
-        type: boolean
-        default: false
   schedule:
     - cron: "*/5 * * * *"
 
@@ -14,8 +9,7 @@ permissions:
   contents: write
 
 concurrency:
-  # Test calismasi ayri grupta: normal takibi beklemez, onun tarafindan iptal edilmez.
-  group: cisia-watcher${{ inputs.test_daily && '-test' || '' }}
+  group: cisia-watcher
   cancel-in-progress: false
 
 jobs:
@@ -44,7 +38,6 @@ jobs:
           # Siten 5 dk'da bir tetikledigi icin calismalar art arda zincirlenir.
           LOOP_SECONDS: "280"
           INTERVAL: "30"
-          TEST_DAILY: ${{ inputs.test_daily }}
         run: python watch.py
 
       - name: Save monitoring state
