@@ -341,14 +341,8 @@ def record_success(health):
     health.pop("alerted", None)
 
 
-def daily_summary(state):
-    """Her sabah bir kez: sistemin calistigini ve takip edilen sinavlari bildirir.
-    Bu mesaj gelmezse sistem hic calismiyor demektir."""
-    today = now().date().isoformat()
-    health = state["health"]
-    if now().hour < DAILY_HOUR or health.get("last_daily") == today:
-        return
-    rows = sorted(state["rows"].values(),
+def summary_lines(rows_by_key):
+    rows = sorted(rows_by_key.values(),
                   key=lambda r: (not r["available"], parse_date(r["date"]) or now().date()))
     lines = ["<b>☀️ Günaydın — takip aktif ✅</b>", ""]
     if rows:
@@ -360,6 +354,17 @@ def daily_summary(state):
     else:
         lines.append("Şu an listede CENT@UNI sınavı yok.")
     lines += ["", "<i>Siteye 30 saniyede bir bakıyorum. Yer açılınca anında haber vereceğim.</i>"]
+    return lines
+
+
+def daily_summary(state):
+    """Her sabah bir kez: sistemin calistigini ve takip edilen sinavlari bildirir.
+    Bu mesaj gelmezse sistem hic calismiyor demektir."""
+    today = now().date().isoformat()
+    health = state["health"]
+    if now().hour < DAILY_HOUR or health.get("last_daily") == today:
+        return
+    lines = summary_lines(state["rows"])
     if try_notify("\n".join(lines), button=False):
         health["last_daily"] = today
 
@@ -377,6 +382,12 @@ def main():
         state = {"rows": fetch_rows(), "health": {}}
         save_state(state)
         print("initialized state")
+        return
+
+    if os.environ.get("TEST_DAILY") == "true":
+        # GECICI: sabah ozetini simdi test olarak gonder; state'e dokunma.
+        notify("🧪 <i>Test mesajı</i>\n\n" + "\n".join(summary_lines(fetch_rows())), button=False)
+        print("test daily summary sent")
         return
 
     deadline = time.monotonic() + LOOP_SECONDS
