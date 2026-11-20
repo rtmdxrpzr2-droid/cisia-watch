@@ -31,6 +31,15 @@ INTERVAL = int(os.environ.get("INTERVAL", "30"))
 
 # Site bu kadar dakika boyunca okunamazsa uyari gonderilir.
 ALERT_AFTER = timedelta(minutes=15)
+# Sayfa duzeni degismisse (tablo var ama tanimadigimiz bicimde) daha hizli uyar;
+# tek seferlik bir aksaklik yuzunden uyarmamak icin ~1 dk (2-3 kontrol) bekle.
+SITE_CHANGE_ALERT_AFTER = timedelta(minutes=1)
+
+# Botun tanidigi tablo basliklari ve durum yazilari. Sayfada bunlardan farkli
+# bir sey gorulurse bot yanlis karar vermemek icin durur ve uyari gonderir.
+EXPECTED_HEADERS = ["FORMAT", "UNIVERSITY", "REGION / FOREIGN COUNTRY", "CITY",
+                    "BOOKINGS DEADLINE", "SEATS", "STATE", "DATE"]
+KNOWN_STATUSES = {"AVAILABLE SEATS", "NOT LONGER AVAILABLE", "BOOKINGS CLOSED"}
 DAILY_HOUR = 9  # gunluk "sistem aktif" ozeti, Roma saatiyle
 
 session = requests.Session()
@@ -41,6 +50,10 @@ class ParseError(Exception):
     pass
 
 
+class SiteChanged(Exception):
+    """Tablo var ama basliklar ya da durum yazilari tanidigimiz gibi degil."""
+
+
 def now():
     return datetime.now(ROME)
 
@@ -49,7 +62,7 @@ def fetch_rows():
     resp = session.get(URL, timeout=20)
     resp.raise_for_status()
     soup = BeautifulSoup(resp.text, "html.parser")
-    rows, total = {}, 0
+    rows, total, unknown = {}, 0, []
     for tr in soup.find_all("tr"):
         tds = tr.find_all("td")
         if len(tds) < 8:
@@ -58,7 +71,9 @@ def fetch_rows():
         fmt, uni, region, city, deadline, seats, status, date = [
             td.get_text(" ", strip=True) for td in tds[:8]
         ]
-        status = status.upper()
+        status = " ".join(status.upper().split())
+        if status not in KNOWN_STATUSES:
+            unknown.append(status)
         available = "AVAILABLE SEATS" in status and "NOT LONGER" not in status
         r = {
             "fmt": fmt, "uni": uni, "city": city, "date": date,
@@ -74,6 +89,13 @@ def fetch_rows():
     if total == 0:
         # Sayfada hic sinav satiri yok: site yapisi degismis ya da hata sayfasi.
         raise ParseError("sayfada sinav tablosu bulunamadi")
+
+    headers = [" ".join(th.get_text(" ", strip=True).upper().split()) for th in soup.find_all("th")]
+    if headers[:len(EXPECTED_HEADERS)] != EXPECTED_HEADERS:
+        raise SiteChanged("Tablo başlıkları değişmiş: " + " | ".join(headers[:10] or ["(başlık yok)"]))
+    if unknown:
+        shown = ", ".join(f'"{u}"' for u in sorted(set(unknown))[:3])
+        raise SiteChanged(f"Tanınmayan durum yazısı: {shown}")
     return rows
 
 
@@ -316,17 +338,24 @@ def record_failure(health, err):
     if not health.get("fail_since"):
         health["fail_since"] = now().isoformat(timespec="seconds")
     since = datetime.fromisoformat(health["fail_since"])
-    if not health.get("alerted") and now() - since >= ALERT_AFTER:
+    site_changed = isinstance(err, SiteChanged)
+    wait = SITE_CHANGE_ALERT_AFTER if site_changed else ALERT_AFTER
+    if health.get("alerted") or now() - since < wait:
+        return
+    if site_changed:
+        text = ("<b>⚠️ CISIA sayfası değişmiş olabilir</b>\n\n"
+                f"{esc(str(err)[:300])}\n\n"
+                "<i>Takip bu yüzden güvenilir değil, yanlış bilgi vermemek için durdum. "
+                "Siteyi kendin kontrol et; botun güncellenmesi gerekiyor.</i>")
+    else:
         mins = int((now() - since).total_seconds() // 60)
-        if try_notify(
-            "<b>⚠️ Takip şu an çalışmıyor</b>\n\n"
-            f"CISIA sayfası {mins} dakikadır okunamıyor.\n"
-            f"Hata: <code>{esc(str(err)[:200])}</code>\n\n"
-            "<i>Bu sürede yeni başvuruları kaçırabilirim, siteyi kendin de kontrol et. "
-            "Düzelince haber vereceğim.</i>",
-            button=False,
-        ):
-            health["alerted"] = True
+        text = ("<b>⚠️ Takip şu an çalışmıyor</b>\n\n"
+                f"CISIA sayfası {mins} dakikadır okunamıyor.\n"
+                f"Hata: <code>{esc(str(err)[:200])}</code>\n\n"
+                "<i>Bu sürede yeni başvuruları kaçırabilirim, siteyi kendin de kontrol et. "
+                "Düzelince haber vereceğim.</i>")
+    if try_notify(text, button=False):
+        health["alerted"] = True
 
 
 def record_success(health):
