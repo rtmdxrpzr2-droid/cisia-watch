@@ -130,16 +130,6 @@ def main():
         if not os.environ.get(var):
             sys.exit(f"Missing {var}")
 
-    if os.environ.get("TEST_MESSAGE") == "true":
-        sample = {
-            "fmt": "CENT@UNI", "uni": "Universita' degli studi di Messina",
-            "city": "MESSINA", "date": "17/12/2026", "deadline": "11/12/2026",
-            "available": True, "seats": "31",
-        }
-        notify("🧪 <b>TEST MESAJI</b> — bot çalışıyor ✅\n\n" + message_for(sample, None))
-        print("test message sent")
-        return
-
     try:
         rows = fetch_rows()
     except Exception as e:

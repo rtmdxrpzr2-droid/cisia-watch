@@ -2,11 +2,6 @@ name: CISIA Watcher
 
 on:
   workflow_dispatch:
-    inputs:
-      test:
-        description: "Sadece test mesaji gonder"
-        type: boolean
-        default: false
   schedule:
     - cron: "*/5 * * * *"
 
@@ -39,7 +34,6 @@ jobs:
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          TEST_MESSAGE: ${{ inputs.test }}
         run: python watch.py
 
       - name: Save monitoring state
