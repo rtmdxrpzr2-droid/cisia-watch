@@ -14,7 +14,8 @@ permissions:
   contents: write
 
 concurrency:
-  group: cisia-watcher
+  # Test calismasi ayri grupta: normal takibi beklemez, onun tarafindan iptal edilmez.
+  group: cisia-watcher${{ inputs.test_daily && '-test' || '' }}
   cancel-in-progress: false
 
 jobs:
