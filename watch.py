@@ -121,12 +121,34 @@ def to_int(s):
         return None
 
 
-def days_until(date_str):
+AYLAR = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz",
+         "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"]
+GUNLER = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
+
+
+def parse_date(date_str):
     try:
-        d = datetime.strptime(date_str.strip(), "%d/%m/%Y").date()
+        return datetime.strptime(str(date_str).strip(), "%d/%m/%Y").date()
     except ValueError:
         return None
-    return (d - now().date()).days
+
+
+def fmt_date(date_str, year=True, weekday=False):
+    """'17/12/2026' -> '17 Aralık 2026, Perşembe' (okunamazsa oldugu gibi)."""
+    d = parse_date(date_str)
+    if d is None:
+        return esc(date_str)
+    out = f"{d.day} {AYLAR[d.month - 1]}"
+    if year:
+        out += f" {d.year}"
+    if weekday:
+        out += f", {GUNLER[d.weekday()]}"
+    return out
+
+
+def days_until(date_str):
+    d = parse_date(date_str)
+    return None if d is None else (d - now().date()).days
 
 
 def days_left(date_str):
@@ -142,23 +164,34 @@ def esc(s):
     return html.escape(str(s), quote=False)
 
 
-def card(title, r, extra_lines=(), footer=None):
+def uni_name(name):
+    # CISIA "Università" yerine "Universita'" yaziyor.
+    return name.replace("Universita'", "Università")
+
+
+def city_name(r):
+    return r["city"].title()
+
+
+def card(title, r, extra_lines=(), footer=None, button=True):
+    """(mesaj, buton_var_mi) dondurur. Baslikta sehir ve sinav tarihi de yazar,
+    boylece kilit ekranindaki bildirimde hangi sinav oldugu hemen gorunur."""
     lines = [
-        f"<b>{title}</b>",
+        f"<b>{title} — {esc(city_name(r))} · {fmt_date(r['date'], year=False)}</b>",
         "",
-        f"🏛 <b>{esc(r['uni'])}</b>",
-        f"📍 {esc(r['city'].title())} · {esc(r['fmt'])}",
-        f"📅 Sınav: <b>{esc(r['date'])}</b>",
-        f"⏳ Son başvuru: {esc(r['deadline'])}{days_left(r['deadline'])}",
+        f"🏛 <b>{esc(uni_name(r['uni']))}</b>",
+        f"📍 {esc(city_name(r))} · {esc(r['fmt'])}",
+        f"📅 Sınav: <b>{fmt_date(r['date'], weekday=True)}</b>",
+        f"⏳ Son başvuru: {fmt_date(r['deadline'], weekday=True)}{days_left(r['deadline'])}",
         *extra_lines,
     ]
     if footer:
         lines += ["", f"<i>{footer}</i>"]
-    return "\n".join(lines)
+    return "\n".join(lines), button
 
 
 def message_for(r, old):
-    """Satir icin gonderilecek mesaji dondurur (yoksa None).
+    """Satir icin gonderilecek (mesaj, buton) ikilisini dondurur (yoksa None).
     r["low_alerted"] bayragini da gunceller: "son koltuklar" uyarisi bir kez gitsin diye."""
     if old and old.get("deadline_reminded"):
         r["deadline_reminded"] = True
@@ -169,14 +202,14 @@ def message_for(r, old):
 
     if not r["available"]:
         if old is None:
-            return card("🆕 Yeni sınav tarihi eklendi", r, ["🔒 Şu an başvuruya kapalı"],
-                        "Başvuru açılınca hemen haber vereceğim.")
+            return card("🆕 YENİ SINAV TARİHİ", r, ["🔒 Şu an başvuruya kapalı"],
+                        "Başvuru açılınca hemen haber vereceğim.", button=False)
         if old["available"]:
             if r.get("closed") == "full":
                 return card("❌ DOLDU", r, ["💺 Boş koltuk kalmadı"],
-                            "İptal olup yer açılırsa hemen haber vereceğim.")
-            return card("🔒 Başvurular kapandı", r, [],
-                        "Bu sınavın başvuru dönemi sona erdi.")
+                            "İptal olup yer açılırsa hemen haber vereceğim.", button=False)
+            return card("🔒 BAŞVURULAR KAPANDI", r, [],
+                        "Bu sınavın başvuru dönemi sona erdi.", button=False)
         return None
 
     n = to_int(r["seats"])
@@ -197,29 +230,29 @@ def message_for(r, old):
         r["deadline_reminded"] = True
 
     if old is None:
-        return card("🚨 YENİ BAŞVURU AÇILDI!", r, [seats, *hurry],
+        return card("🚨 YENİ BAŞVURU AÇILDI", r, [seats, *hurry],
                     "Koltuklar hızlı doluyor, acele et!")
     if not old["available"]:
         if not old.get("seen_open"):
-            return card("🚨 BAŞVURULAR AÇILDI!", r, [seats, *hurry],
+            return card("🚨 BAŞVURULAR AÇILDI", r, [seats, *hurry],
                         "Koltuklar hızlı doluyor, acele et!")
-        return card("🔔 KOLTUK AÇILDI!", r, [seats, *hurry],
+        return card("🔔 KOLTUK AÇILDI", r, [seats, *hurry],
                     "Bir iptal olmuş olabilir, hızlı ol!")
 
     o = to_int(old["seats"])
     if n is not None and o is not None and n > o and o <= NEAR_FULL:
-        return card("📈 Dolmak üzereyken koltuk arttı", r,
+        return card("📈 KOLTUK ARTTI", r,
                     [f"💺 Boş koltuk: {o} → <b>{n}</b>", *hurry],
-                    "Bir iptal olmuş olabilir, hızlı ol!")
+                    "Dolmak üzereyken bir iptal oldu, hızlı ol!")
     if low and not already_low:
-        return card(f"⏰ SON {n} KOLTUK!", r, [seats],
+        return card(f"⏰ SON {n} KOLTUK", r, [seats],
                     "Bu sınav dolmak üzere. Başvurmayı düşünüyorsan şimdi tam zamanı!")
 
     # Son basvuruya REMIND_DAYS gun kala, sabah saatinden sonra bir kez hatirlat.
     if in_remind_window and not r.get("deadline_reminded") and now().hour >= DAILY_HOUR:
         r["deadline_reminded"] = True
-        when = "Bugün son gün!" if left == 0 else f"Son başvuruya {left} gün kaldı"
-        return card(f"⏳ {when}", r, [seats, *hurry],
+        title = "⏳ BUGÜN SON GÜN" if left == 0 else f"⏳ SON {left} GÜN"
+        return card(title, r, [seats, *hurry],
                     "Başvurmayı düşünüyorsan erteleme.")
     return None
 
@@ -260,17 +293,16 @@ def check(state):
     new_rows = dict(rows)
     for key, r in rows.items():
         try:
-            msg = message_for(r, prev.get(key))
+            out = message_for(r, prev.get(key))
         except Exception as e:
             # Beklenmedik bir satir tum takibi durdurmasin; bu satiri sonra tekrar dene.
             print("row error:", key, repr(e))
-            msg = None
             if key in prev:
                 new_rows[key] = prev[key]
             else:
                 del new_rows[key]
             continue
-        if msg and not try_notify(msg):
+        if out and not try_notify(*out):
             # Bildirim gitmediyse eski durumu koru: sonraki kontrolde tekrar denenir.
             if key in prev:
                 new_rows[key] = prev[key]
@@ -316,16 +348,18 @@ def daily_summary(state):
     health = state["health"]
     if now().hour < DAILY_HOUR or health.get("last_daily") == today:
         return
-    rows = sorted(state["rows"].values(), key=lambda r: (r["date"][6:], r["date"][3:5], r["date"][:2]))
+    rows = sorted(state["rows"].values(),
+                  key=lambda r: (not r["available"], parse_date(r["date"]) or now().date()))
     lines = ["<b>☀️ Günaydın — takip aktif ✅</b>", ""]
     if rows:
         lines.append(f"Takip edilen {len(rows)} sınav:")
         for r in rows:
-            icon = f"🟢 {esc(r['seats'])} koltuk" if r["available"] else "🔴 kapalı"
-            lines.append(f"• {esc(r['city'].title())} · {esc(r['date'])} — {icon}")
+            state_txt = f"{esc(r['seats'])} koltuk" if r["available"] else "kapalı"
+            dot = "🟢" if r["available"] else "🔴"
+            lines.append(f"• {dot} {esc(city_name(r))} · {fmt_date(r['date'])} — {state_txt}")
     else:
         lines.append("Şu an listede CENT@UNI sınavı yok.")
-    lines += ["", "<i>Yer açılınca anında haber vereceğim.</i>"]
+    lines += ["", "<i>Siteye 30 saniyede bir bakıyorum. Yer açılınca anında haber vereceğim.</i>"]
     if try_notify("\n".join(lines), button=False):
         health["last_daily"] = today
 
