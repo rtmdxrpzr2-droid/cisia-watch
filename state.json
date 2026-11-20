@@ -6,6 +6,7 @@
   "CENT@UNI|Politecnico di Torino|12/01/2027": {
    "available": false,
    "city": "TORINO",
+   "closed": "full",
    "date": "12/01/2027",
    "deadline": "06/01/2027",
    "fmt": "CENT@UNI",
@@ -15,6 +16,7 @@
   "CENT@UNI|Universita' degli studi di Messina|17/12/2026": {
    "available": true,
    "city": "MESSINA",
+   "closed": null,
    "date": "17/12/2026",
    "deadline": "11/12/2026",
    "fmt": "CENT@UNI",
@@ -24,6 +26,7 @@
   "CENT@UNI|Universita' degli studi di Messina|26/11/2026": {
    "available": false,
    "city": "MESSINA",
+   "closed": "closed",
    "date": "26/11/2026",
    "deadline": "20/11/2026",
    "fmt": "CENT@UNI",
@@ -33,6 +36,7 @@
   "CENT@UNI|Universita' degli studi di Trieste|26/11/2026": {
    "available": false,
    "city": "TRIESTE",
+   "closed": "closed",
    "date": "26/11/2026",
    "deadline": "20/11/2026",
    "fmt": "CENT@UNI",
