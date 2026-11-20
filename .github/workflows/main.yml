@@ -20,6 +20,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
+        with:
+          # Tetiklendigi anki commit yerine dalin EN SON halini al; onceki
+          # calismanin kaydettigi state.json kullanilsin, ayni mesaj iki kez gitmesin.
+          ref: ${{ github.ref }}
 
       - name: Setup Python
         uses: actions/setup-python@v6
