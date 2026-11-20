@@ -1,10 +1,14 @@
-import json, os, sys
+import html, json, os, sys
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 import requests
 from bs4 import BeautifulSoup
 
 URL = "https://testcisia.it/calendario.php?tolc=cents&l=gb&lingua=inglese"
 LINK = "https://testcisia.it/studenti_tolc/login_sso.php"
 STATE = "state.json"
+ROME = ZoneInfo("Europe/Rome")
 
 # Universite filtresi yok: tum CENT@UNI satirlari icin bildirim gelir.
 WATCH_UNIVERSITIES = []
@@ -52,10 +56,14 @@ def wanted(r):
 def notify(text):
     resp = session.post(
         f"https://api.telegram.org/bot{os.environ['TELEGRAM_TOKEN']}/sendMessage",
-        data={
+        json={
             "chat_id": os.environ["TELEGRAM_CHAT_ID"],
             "text": text,
+            "parse_mode": "HTML",
             "disable_web_page_preview": True,
+            "reply_markup": {
+                "inline_keyboard": [[{"text": "🎟 Hemen Başvur", "url": LINK}]]
+            },
         },
         timeout=30,
     )
@@ -69,24 +77,51 @@ def to_int(s):
         return None
 
 
-def describe(r):
-    return (
-        f"{r['uni']} ({r['city']}) - {r['fmt']}\n"
-        f"Sinav: {r['date']} | Son basvuru: {r['deadline']}"
-    )
+def days_left(date_str):
+    try:
+        d = datetime.strptime(date_str.strip(), "%d/%m/%Y").date()
+    except ValueError:
+        return ""
+    n = (d - datetime.now(ROME).date()).days
+    if n < 0:
+        return ""
+    if n == 0:
+        return " (⚠️ bugün son gün!)"
+    return f" ({n} gün kaldı)"
+
+
+def card(title, r, extra_lines=(), footer=None):
+    e = lambda s: html.escape(s, quote=False)
+    lines = [
+        f"<b>{title}</b>",
+        "",
+        f"🏛 <b>{e(r['uni'])}</b>",
+        f"📍 {e(r['city'].title())} · {e(r['fmt'])}",
+        f"📅 Sınav: <b>{e(r['date'])}</b>",
+        f"⏳ Son başvuru: {e(r['deadline'])}{days_left(r['deadline'])}",
+        *extra_lines,
+    ]
+    if footer:
+        lines += ["", f"<i>{footer}</i>"]
+    return "\n".join(lines)
 
 
 def message_for(r, old):
+    seats = f"💺 Boş koltuk: <b>{html.escape(str(r['seats']), quote=False)}</b>"
     if old is None:
         if r["available"]:
-            return f"YENI BASVURU ACILDI! Koltuk: {r['seats']}\n{describe(r)}"
-        return f"Yeni tarih eklendi (henuz koltuk yok)\n{describe(r)}"
+            return card("🚨 YENİ BAŞVURU AÇILDI!", r, [seats],
+                        "Koltuklar hızlı doluyor, acele et!")
+        return card("🆕 Yeni sınav tarihi eklendi", r, ["🔒 Henüz başvuru açık değil"],
+                    "Başvuru açılınca tekrar haber vereceğim.")
     if r["available"] and not old["available"]:
-        return f"KOLTUK ACILDI (iptal olmus olabilir)! Koltuk: {r['seats']}\n{describe(r)}"
+        return card("🔔 KOLTUK AÇILDI!", r, [seats],
+                    "Bir iptal olmuş olabilir, hızlı ol!")
     if r["available"] and old["available"]:
         n, o = to_int(r["seats"]), to_int(old["seats"])
         if n is not None and o is not None and n > o:
-            return f"Koltuk sayisi artti: {o} -> {n} (iptal olmus olabilir)\n{describe(r)}"
+            return card("📈 Koltuk sayısı arttı", r, [f"💺 Boş koltuk: {o} → <b>{n}</b>"],
+                        "Bir iptal olmuş olabilir.")
     return None
 
 
@@ -118,7 +153,7 @@ def main():
             if not msg:
                 continue
             try:
-                notify(msg + "\n" + LINK)
+                notify(msg)
             except Exception as e:
                 # Bildirim gitmediyse eski durumu koru: sonraki calismada tekrar denenir.
                 print("notify failed:", key, e)
