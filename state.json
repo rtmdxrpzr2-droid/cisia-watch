@@ -1,38 +1,43 @@
 {
- "CENT@UNI|Politecnico di Torino|12/01/2027": {
-  "available": false,
-  "city": "TORINO",
-  "date": "12/01/2027",
-  "deadline": "06/01/2027",
-  "fmt": "CENT@UNI",
-  "seats": null,
-  "uni": "Politecnico di Torino"
+ "health": {
+  "last_daily": "2026-11-20"
  },
- "CENT@UNI|Universita' degli studi di Messina|17/12/2026": {
-  "available": true,
-  "city": "MESSINA",
-  "date": "17/12/2026",
-  "deadline": "11/12/2026",
-  "fmt": "CENT@UNI",
-  "seats": "32",
-  "uni": "Universita' degli studi di Messina"
- },
- "CENT@UNI|Universita' degli studi di Messina|26/11/2026": {
-  "available": false,
-  "city": "MESSINA",
-  "date": "26/11/2026",
-  "deadline": "20/11/2026",
-  "fmt": "CENT@UNI",
-  "seats": null,
-  "uni": "Universita' degli studi di Messina"
- },
- "CENT@UNI|Universita' degli studi di Trieste|26/11/2026": {
-  "available": false,
-  "city": "TRIESTE",
-  "date": "26/11/2026",
-  "deadline": "20/11/2026",
-  "fmt": "CENT@UNI",
-  "seats": null,
-  "uni": "Universita' degli studi di Trieste"
+ "rows": {
+  "CENT@UNI|Politecnico di Torino|12/01/2027": {
+   "available": false,
+   "city": "TORINO",
+   "date": "12/01/2027",
+   "deadline": "06/01/2027",
+   "fmt": "CENT@UNI",
+   "seats": null,
+   "uni": "Politecnico di Torino"
+  },
+  "CENT@UNI|Universita' degli studi di Messina|17/12/2026": {
+   "available": true,
+   "city": "MESSINA",
+   "date": "17/12/2026",
+   "deadline": "11/12/2026",
+   "fmt": "CENT@UNI",
+   "seats": "32",
+   "uni": "Universita' degli studi di Messina"
+  },
+  "CENT@UNI|Universita' degli studi di Messina|26/11/2026": {
+   "available": false,
+   "city": "MESSINA",
+   "date": "26/11/2026",
+   "deadline": "20/11/2026",
+   "fmt": "CENT@UNI",
+   "seats": null,
+   "uni": "Universita' degli studi di Messina"
+  },
+  "CENT@UNI|Universita' degli studi di Trieste|26/11/2026": {
+   "available": false,
+   "city": "TRIESTE",
+   "date": "26/11/2026",
+   "deadline": "20/11/2026",
+   "fmt": "CENT@UNI",
+   "seats": null,
+   "uni": "Universita' degli studi di Trieste"
+  }
  }
 }
