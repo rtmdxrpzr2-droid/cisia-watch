@@ -21,6 +21,7 @@
    "deadline": "11/12/2026",
    "fmt": "CENT@UNI",
    "seats": "32",
+   "seen_open": true,
    "uni": "Universita' degli studi di Messina"
   },
   "CENT@UNI|Universita' degli studi di Messina|26/11/2026": {
