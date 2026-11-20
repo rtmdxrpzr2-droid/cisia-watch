@@ -389,7 +389,10 @@ def main():
             print("check crashed:", repr(e))
             record_failure(state["health"], e)
         if not state["health"].get("fail_since"):
-            daily_summary(state)
+            try:
+                daily_summary(state)
+            except Exception as e:
+                print("daily summary failed:", repr(e))
         save_state(state)
         if started + INTERVAL > deadline:
             break
