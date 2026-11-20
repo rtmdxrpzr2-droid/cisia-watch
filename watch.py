@@ -14,6 +14,15 @@ ROME = ZoneInfo("Europe/Rome")
 WATCH_UNIVERSITIES = []
 ONLY_UNI_FORMAT = True  # sadece CENT@UNI (yuz yuze) olanlar
 
+# "Koltuk sayisi artti" sadece sinav neredeyse doluyken (bu kadar veya daha az
+# koltuk kalmisken) bildirilir; bol koltuk varken artislar gurultu yapar.
+NEAR_FULL = 5
+# Acik bir sinavda koltuk bu sayiya dusunce bir kez "SON N KOLTUK" uyarisi gider.
+# Koltuk LOW_RESET'in ustune cikarsa uyari yeniden kurulur (10<->11 gidip
+# gelmesi tekrar tekrar mesaj atmasin diye).
+LOW_SEATS = 10
+LOW_RESET = 15
+
 # Her calisma LOOP_SECONDS boyunca acik kalir ve siteye INTERVAL saniyede bir bakar.
 LOOP_SECONDS = int(os.environ.get("LOOP_SECONDS", "0"))
 INTERVAL = int(os.environ.get("INTERVAL", "30"))
@@ -141,21 +150,40 @@ def card(title, r, extra_lines=(), footer=None):
 
 
 def message_for(r, old):
+    """Satir icin gonderilecek mesaji dondurur (yoksa None).
+    r["low_alerted"] bayragini da gunceller: "son koltuklar" uyarisi bir kez gitsin diye."""
+    if not r["available"]:
+        if old is None:
+            return card("🆕 Yeni sınav tarihi eklendi", r, ["🔒 Henüz başvuru açık değil"],
+                        "Başvuru açılınca tekrar haber vereceğim.")
+        return None
+
+    n = to_int(r["seats"])
+    low = n is not None and 0 < n <= LOW_SEATS
+    if old and old["available"] and old.get("low_alerted") and n is not None and n <= LOW_RESET:
+        r["low_alerted"] = True  # daha once uyarildi, koltuk yeterince artmadi
+    already_low = r.get("low_alerted", False)
+    if low:
+        r["low_alerted"] = True
+
     seats = f"💺 Boş koltuk: <b>{esc(r['seats'])}</b>"
+    hurry = [f"🔥 <b>Son {n} koltuk!</b>"] if low else []
+
     if old is None:
-        if r["available"]:
-            return card("🚨 YENİ BAŞVURU AÇILDI!", r, [seats],
-                        "Koltuklar hızlı doluyor, acele et!")
-        return card("🆕 Yeni sınav tarihi eklendi", r, ["🔒 Henüz başvuru açık değil"],
-                    "Başvuru açılınca tekrar haber vereceğim.")
-    if r["available"] and not old["available"]:
-        return card("🔔 KOLTUK AÇILDI!", r, [seats],
+        return card("🚨 YENİ BAŞVURU AÇILDI!", r, [seats, *hurry],
+                    "Koltuklar hızlı doluyor, acele et!")
+    if not old["available"]:
+        return card("🔔 KOLTUK AÇILDI!", r, [seats, *hurry],
                     "Bir iptal olmuş olabilir, hızlı ol!")
-    if r["available"] and old["available"]:
-        n, o = to_int(r["seats"]), to_int(old["seats"])
-        if n is not None and o is not None and n > o:
-            return card("📈 Koltuk sayısı arttı", r, [f"💺 Boş koltuk: {o} → <b>{n}</b>"],
-                        "Bir iptal olmuş olabilir.")
+
+    o = to_int(old["seats"])
+    if n is not None and o is not None and n > o and o <= NEAR_FULL:
+        return card("📈 Dolmak üzereyken koltuk arttı", r,
+                    [f"💺 Boş koltuk: {o} → <b>{n}</b>", *hurry],
+                    "Bir iptal olmuş olabilir, hızlı ol!")
+    if low and not already_low:
+        return card(f"⏰ SON {n} KOLTUK!", r, [seats],
+                    "Bu sınav dolmak üzere. Başvurmayı düşünüyorsan şimdi tam zamanı!")
     return None
 
 
