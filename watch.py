@@ -1,4 +1,4 @@
-import html, json, os, sys, time
+import html, json, os, re, sys, time
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -31,15 +31,20 @@ INTERVAL = int(os.environ.get("INTERVAL", "30"))
 
 # Site bu kadar dakika boyunca okunamazsa uyari gonderilir.
 ALERT_AFTER = timedelta(minutes=15)
-# Sayfa duzeni degismisse (tablo var ama tanimadigimiz bicimde) daha hizli uyar;
-# tek seferlik bir aksaklik yuzunden uyarmamak icin ~1 dk (2-3 kontrol) bekle.
+# Sayfa hic anlasilamiyorsa (tablo var ama hicbir satir okunamiyor) daha hizli
+# uyar; tek seferlik bir aksaklik yuzunden uyarmamak icin ~1 dk bekle.
 SITE_CHANGE_ALERT_AFTER = timedelta(minutes=1)
 
-# Botun tanidigi tablo basliklari ve durum yazilari. Sayfada bunlardan farkli
-# bir sey gorulurse bot yanlis karar vermemek icin durur ve uyari gonderir.
-EXPECTED_HEADERS = ["FORMAT", "UNIVERSITY", "REGION / FOREIGN COUNTRY", "CITY",
-                    "BOOKINGS DEADLINE", "SEATS", "STATE", "DATE"]
-KNOWN_STATUSES = {"AVAILABLE SEATS", "NOT LONGER AVAILABLE", "BOOKINGS CLOSED"}
+# Sutunlar basliklarina gore bulunur; boylece CISIA yeni sutun eklese ya da
+# sirayi degistirse de takip devam eder. Basliklar bulunamazsa bugunku sutun
+# sirasi kullanilir (tarih sutunlari tarih gibi gorunuyorsa).
+COLUMNS = {"fmt": "FORMAT", "uni": "UNIVERSITY", "city": "CITY",
+           "deadline": "BOOKINGS DEADLINE", "seats": "SEATS", "status": "STATE", "date": "DATE"}
+DEFAULT_POSITIONS = {"fmt": 0, "uni": 1, "city": 3, "deadline": 4, "seats": 5, "status": 6, "date": 7}
+DATE_RE = re.compile(r"^\d{1,2}/\d{1,2}/\d{4}$")
+# Botun tanidigi durum yazilari ve sinav turleri. Bilinmeyen bir sey gorulurse
+# sadece o sinav etkilenir, diger sinavlarin takibi surer; bir kez bilgi verilir.
+KNOWN_FORMATS = {"CENT@UNI", "CENT@HOME"}
 DAILY_HOUR = 9  # gunluk "sistem aktif" ozeti, Roma saatiyle
 
 session = requests.Session()
@@ -51,51 +56,122 @@ class ParseError(Exception):
 
 
 class SiteChanged(Exception):
-    """Tablo var ama basliklar ya da durum yazilari tanidigimiz gibi degil."""
+    """Tablo var ama hicbir satir anlasilamiyor; takip yapilamaz."""
+
+
+class Rows(dict):
+    """fetch_rows sonucu: satirlar + kullaniciya bir kez bildirilecek uyarilar.
+    partial=True: bazi satirlar okunamadi; gorunmeyen sinavlar silinmemeli."""
+    warnings = ()
+    partial = False
 
 
 def now():
     return datetime.now(ROME)
 
 
+def norm(text):
+    return " ".join(str(text).upper().split())
+
+
+def column_map(soup):
+    """Sutun konumlarini basliklardan bulur. (konumlar, uyari) dondurur."""
+    for tr in soup.find_all("tr"):
+        ths = [norm(th.get_text(" ", strip=True)) for th in tr.find_all("th")]
+        if "FORMAT" in ths or "DATE" in ths:
+            if all(name in ths for name in COLUMNS.values()):
+                return {k: ths.index(name) for k, name in COLUMNS.items()}, None
+            missing = [n for n in COLUMNS.values() if n not in ths]
+            return DEFAULT_POSITIONS, ("Tablo başlıkları değişmiş (" + ", ".join(missing) +
+                                       " bulunamadı); sütun sırasına göre okumaya devam ediyorum.")
+    return DEFAULT_POSITIONS, "Tablo başlıkları bulunamadı; sütun sırasına göre okumaya devam ediyorum."
+
+
+# Bilinen durum yazilari -> (acik_mi, kapanma_nedeni). Site Italyancaya donerse
+# diye Italyanca karsiliklari da taniniyor.
+STATUS_MAP = {
+    "AVAILABLE SEATS": (True, None),
+    "NOT LONGER AVAILABLE": (False, "full"),
+    "BOOKINGS CLOSED": (False, "closed"),
+    "POSTI DISPONIBILI": (True, None),
+    "POSTI ESAURITI": (False, "full"),
+    "ISCRIZIONI CHIUSE": (False, "closed"),
+}
+
+
+def classify(status):
+    """Durum yazisindan (acik_mi, kapanma_nedeni, taninan_mi) cikarir."""
+    if status in STATUS_MAP:
+        return (*STATUS_MAP[status], True)
+    # Bilinmeyen yazi: "acik" gibi gorunuyorsa acik say (kacirmaktansa fazladan
+    # haber vermek iyi); degilse karar verme, bu sinavin son durumunu koru.
+    negative = any(w in status for w in ("NOT", "NO LONGER", "UNAVAILABLE", "ESAURIT", "CHIUS", "NON "))
+    if ("AVAILABLE" in status or "DISPONIBIL" in status) and not negative:
+        return True, None, False
+    return None, None, False
+
+
 def fetch_rows():
     resp = session.get(URL, timeout=20)
     resp.raise_for_status()
     soup = BeautifulSoup(resp.text, "html.parser")
-    rows, total, unknown = {}, 0, []
+    cols, header_warning = column_map(soup)
+    need = max(cols.values()) + 1
+
+    rows, warnings = Rows(), []
+    new_formats, new_statuses = {}, {}
+    total = good = bad = 0
     for tr in soup.find_all("tr"):
         tds = tr.find_all("td")
-        if len(tds) < 8:
+        if len(tds) < need:
             continue
         total += 1
-        fmt, uni, region, city, deadline, seats, status, date = [
-            td.get_text(" ", strip=True) for td in tds[:8]
-        ]
-        status = " ".join(status.upper().split())
-        if status not in KNOWN_STATUSES:
-            unknown.append(status)
-        available = "AVAILABLE SEATS" in status and "NOT LONGER" not in status
+        cell = {k: tds[i].get_text(" ", strip=True) for k, i in cols.items()}
+        if not (DATE_RE.match(cell["date"]) and DATE_RE.match(cell["deadline"])):
+            bad += 1  # bu satir beklenen bicimde degil (tarih sutunu tarih degil)
+            continue
+        good += 1
+        status, fmt = norm(cell["status"]), cell["fmt"]
+        available, closed, known = classify(status)
         r = {
-            "fmt": fmt, "uni": uni, "city": city, "date": date,
-            "deadline": deadline, "available": available,
+            "fmt": fmt, "uni": cell["uni"], "city": cell["city"], "date": cell["date"],
+            "deadline": cell["deadline"], "available": bool(available),
             # Kapaliysa neden: koltuklar doldu mu, basvuru suresi mi bitti?
-            "closed": None if available else ("full" if "NOT LONGER" in status else "closed"),
+            "closed": None if available else closed,
             # Koltuk sayisi sadece basvuru acikken anlamli. Kapaliyken
             # saklamiyoruz; boylece anlamsiz dalgalanmalar commit uretmiyor.
-            "seats": seats if available else None,
+            "seats": cell["seats"] if available else None,
         }
-        if wanted(r):
-            rows[f"{fmt}|{uni}|{date}"] = r
-    if total == 0:
-        # Sayfada hic sinav satiri yok: site yapisi degismis ya da hata sayfasi.
-        raise ParseError("sayfada sinav tablosu bulunamadi")
+        where = f"{r['city'].title()} {r['date'][:5]}"
+        if norm(fmt) not in KNOWN_FORMATS:
+            # Takip edilmese bile bildir: CISIA "CENT@UNI" adini degistirirse fark edelim.
+            new_formats.setdefault(fmt, wanted(r))
+        if not wanted(r):
+            continue
+        if not known:
+            decision = "son durumunu koruyorum" if available is None else "açık kabul ettim"
+            new_statuses.setdefault((status, decision), []).append(where)
+            if available is None:
+                r["_frozen"] = True  # karar verilemedi: bu sinavin son durumu korunur
+        rows[f"{fmt}|{r['uni']}|{r['date']}"] = r
 
-    headers = [" ".join(th.get_text(" ", strip=True).upper().split()) for th in soup.find_all("th")]
-    if headers[:len(EXPECTED_HEADERS)] != EXPECTED_HEADERS:
-        raise SiteChanged("Tablo başlıkları değişmiş: " + " | ".join(headers[:10] or ["(başlık yok)"]))
-    if unknown:
-        shown = ", ".join(f'"{u}"' for u in sorted(set(unknown))[:3])
-        raise SiteChanged(f"Tanınmayan durum yazısı: {shown}")
+    if total == 0:
+        # Sayfada hic sinav satiri yok: bakim/hata sayfasi ya da tablo kaldirilmis.
+        raise ParseError("sayfada sinav tablosu bulunamadi")
+    if good == 0:
+        # Tablo var ama hicbir satir anlasilamiyor: takip yapilamaz.
+        raise SiteChanged("Sınav tablosu okunamıyor: hiçbir satırda tarih sütunları beklenen yerde değil.")
+    if header_warning:
+        warnings.append(header_warning)
+    for fmt, tracked in new_formats.items():
+        warnings.append(f'Yeni sınav türü "{fmt}"' + (" — takip ediyorum" if tracked else " — takip ETMİYORUM"))
+    for (status, decision), wheres in new_statuses.items():
+        more = f" +{len(wheres) - 4}" if len(wheres) > 4 else ""
+        warnings.append(f'Yeni durum yazısı "{status}" ({", ".join(wheres[:4])}{more}) — {decision}')
+    if bad:
+        warnings.append(f"{bad} satır okunamadı (beklenmeyen biçim), onları atladım.")
+    rows.warnings = tuple(warnings)
+    rows.partial = bad > 0
     return rows
 
 
@@ -242,7 +318,8 @@ def message_for(r, old):
     if low:
         r["low_alerted"] = True
 
-    seats = f"💺 Boş koltuk: <b>{esc(r['seats'])}</b>"
+    shown_seats = r["seats"] if to_int(r["seats"]) is not None else "belirtilmemiş"
+    seats = f"💺 Boş koltuk: <b>{esc(shown_seats)}</b>"
     hurry = [f"🔥 <b>Son {n} koltuk!</b>"] if low else []
 
     left = days_until(r["deadline"])
@@ -311,14 +388,25 @@ def check(state):
         return
 
     record_success(health)
+    report_warnings(health, getattr(rows, "warnings", ()))
     prev = state["rows"]
-    new_rows = dict(rows)
+    new_rows = {}
     for key, r in rows.items():
+        if r.pop("_frozen", False):
+            # Durumu anlasilamayan sinav: son bilinen hali korunur, mesaj gitmez.
+            if key in prev:
+                new_rows[key] = prev[key]
+            else:
+                r["available"], r["closed"], r["seats"] = False, None, None
+                new_rows[key] = r
+            continue
+        new_rows[key] = r
         try:
             out = message_for(r, prev.get(key))
         except Exception as e:
             # Beklenmedik bir satir tum takibi durdurmasin; bu satiri sonra tekrar dene.
             print("row error:", key, repr(e))
+            out = None
             if key in prev:
                 new_rows[key] = prev[key]
             else:
@@ -330,8 +418,29 @@ def check(state):
                 new_rows[key] = prev[key]
             else:
                 del new_rows[key]
+    if getattr(rows, "partial", False):
+        # Bazi satirlar okunamadi: gorunmeyen sinavlari silme (sonra "yeni" sanilmasin).
+        for key, old in prev.items():
+            new_rows.setdefault(key, old)
     state["rows"] = new_rows
     print(now().strftime("%H:%M:%S"), "ok,", len(rows), "rows")
+
+
+def report_warnings(health, warnings):
+    """Sayfadaki yeni/tanimadik seyleri bir kez bildirir; ayni uyarilar tekrar gitmez."""
+    current = sorted(set(warnings))
+    if current == health.get("warnings", []):
+        return
+    if current:
+        lines = ["<b>⚠️ CISIA sayfasında yeni bir şey var</b>", ""]
+        lines += [f"• {esc(w)}" for w in current[:8]]
+        lines += ["", "<i>Diğer sınavların takibi normal devam ediyor. "
+                      "Etkilenen sınavı siteden de kontrol et; botun güncellenmesi gerekebilir.</i>"]
+        if not try_notify("\n".join(lines), button=False):
+            return
+        health["warnings"] = current
+    else:
+        health.pop("warnings", None)
 
 
 def record_failure(health, err):
@@ -345,8 +454,8 @@ def record_failure(health, err):
     if site_changed:
         text = ("<b>⚠️ CISIA sayfası değişmiş olabilir</b>\n\n"
                 f"{esc(str(err)[:300])}\n\n"
-                "<i>Takip bu yüzden güvenilir değil, yanlış bilgi vermemek için durdum. "
-                "Siteyi kendin kontrol et; botun güncellenmesi gerekiyor.</i>")
+                "<i>Sayfadaki hiçbir sınavı okuyamıyorum, takip duruyor. "
+                "Siteyi kendin kontrol et; botun güncellenmesi gerekiyor. Düzelince haber vereceğim.</i>")
     else:
         mins = int((now() - since).total_seconds() // 60)
         text = ("<b>⚠️ Takip şu an çalışmıyor</b>\n\n"
