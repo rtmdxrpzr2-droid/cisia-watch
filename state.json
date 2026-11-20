@@ -6,7 +6,7 @@
   "date": "26/11/2026",
   "deadline": "20/11/2026",
   "seats": "71",
-  "available": true
+  "available": false
  },
  "CENT@UNI|Universita' degli studi di Messina|26/11/2026": {
   "fmt": "CENT@UNI",
@@ -15,7 +15,7 @@
   "date": "26/11/2026",
   "deadline": "20/11/2026",
   "seats": "60",
-  "available": true
+  "available": false
  },
  "CENT@HOME|Sapienza Università di Roma|26/11/2026": {
   "fmt": "CENT@HOME",
@@ -23,7 +23,7 @@
   "city": "ROMA",
   "date": "26/11/2026",
   "deadline": "20/11/2026",
-  "seats": "---",
+  "seats": "0",
   "available": false
  },
  "CENT@HOME|Politecnico di Milano|26/11/2026": {
@@ -32,7 +32,7 @@
   "city": "MILANO",
   "date": "26/11/2026",
   "deadline": "20/11/2026",
-  "seats": "---",
+  "seats": "0",
   "available": false
  },
  "CENT@HOME|Università degli studi di Padova|26/11/2026": {
@@ -41,7 +41,7 @@
   "city": "PADOVA",
   "date": "26/11/2026",
   "deadline": "20/11/2026",
-  "seats": "---",
+  "seats": "0",
   "available": false
  },
  "CENT@HOME|Università degli studi di Teramo|26/11/2026": {
@@ -50,7 +50,7 @@
   "city": "TERAMO",
   "date": "26/11/2026",
   "deadline": "20/11/2026",
-  "seats": "---",
+  "seats": "0",
   "available": false
  },
  "CENT@HOME|Università Ca' Foscari Venezia|26/11/2026": {
@@ -59,7 +59,7 @@
   "city": "VENEZIA",
   "date": "26/11/2026",
   "deadline": "20/11/2026",
-  "seats": "---",
+  "seats": "0",
   "available": false
  },
  "CENT@UNI|Universita' degli studi di Messina|17/12/2026": {
