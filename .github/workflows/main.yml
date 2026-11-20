@@ -15,7 +15,7 @@ concurrency:
 jobs:
   watch:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
 
     steps:
       - name: Checkout repository
@@ -34,6 +34,10 @@ jobs:
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # Her calisma ~4 dk acik kalip siteye 30 sn'de bir bakar.
+          # Siten 5 dk'da bir tetikledigi icin calismalar art arda zincirlenir.
+          LOOP_SECONDS: "240"
+          INTERVAL: "30"
         run: python watch.py
 
       - name: Save monitoring state

@@ -1,5 +1,5 @@
-import html, json, os, sys
-from datetime import datetime
+import html, json, os, sys, time
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import requests
@@ -14,19 +14,36 @@ ROME = ZoneInfo("Europe/Rome")
 WATCH_UNIVERSITIES = []
 ONLY_UNI_FORMAT = True  # sadece CENT@UNI (yuz yuze) olanlar
 
+# Her calisma LOOP_SECONDS boyunca acik kalir ve siteye INTERVAL saniyede bir bakar.
+LOOP_SECONDS = int(os.environ.get("LOOP_SECONDS", "0"))
+INTERVAL = int(os.environ.get("INTERVAL", "30"))
+
+# Site bu kadar dakika boyunca okunamazsa uyari gonderilir.
+ALERT_AFTER = timedelta(minutes=15)
+DAILY_HOUR = 9  # gunluk "sistem aktif" ozeti, Roma saatiyle
+
 session = requests.Session()
 session.headers["User-Agent"] = "Mozilla/5.0"
 
 
+class ParseError(Exception):
+    pass
+
+
+def now():
+    return datetime.now(ROME)
+
+
 def fetch_rows():
-    resp = session.get(URL, timeout=30)
+    resp = session.get(URL, timeout=20)
     resp.raise_for_status()
     soup = BeautifulSoup(resp.text, "html.parser")
-    rows = {}
+    rows, total = {}, 0
     for tr in soup.find_all("tr"):
         tds = tr.find_all("td")
         if len(tds) < 8:
             continue
+        total += 1
         fmt, uni, region, city, deadline, seats, status, date = [
             td.get_text(" ", strip=True) for td in tds[:8]
         ]
@@ -41,6 +58,9 @@ def fetch_rows():
         }
         if wanted(r):
             rows[f"{fmt}|{uni}|{date}"] = r
+    if total == 0:
+        # Sayfada hic sinav satiri yok: site yapisi degismis ya da hata sayfasi.
+        raise ParseError("sayfada sinav tablosu bulunamadi")
     return rows
 
 
@@ -53,21 +73,32 @@ def wanted(r):
     return True
 
 
-def notify(text):
+def notify(text, button=True):
+    payload = {
+        "chat_id": os.environ["TELEGRAM_CHAT_ID"],
+        "text": text,
+        "parse_mode": "HTML",
+        "disable_web_page_preview": True,
+    }
+    if button:
+        payload["reply_markup"] = {
+            "inline_keyboard": [[{"text": "🎟 Hemen Başvur", "url": LINK}]]
+        }
     resp = session.post(
         f"https://api.telegram.org/bot{os.environ['TELEGRAM_TOKEN']}/sendMessage",
-        json={
-            "chat_id": os.environ["TELEGRAM_CHAT_ID"],
-            "text": text,
-            "parse_mode": "HTML",
-            "disable_web_page_preview": True,
-            "reply_markup": {
-                "inline_keyboard": [[{"text": "🎟 Hemen Başvur", "url": LINK}]]
-            },
-        },
-        timeout=30,
+        json=payload,
+        timeout=20,
     )
     resp.raise_for_status()
+
+
+def try_notify(text, button=True):
+    try:
+        notify(text, button)
+        return True
+    except Exception as e:
+        print("notify failed:", e)
+        return False
 
 
 def to_int(s):
@@ -82,7 +113,7 @@ def days_left(date_str):
         d = datetime.strptime(date_str.strip(), "%d/%m/%Y").date()
     except ValueError:
         return ""
-    n = (d - datetime.now(ROME).date()).days
+    n = (d - now().date()).days
     if n < 0:
         return ""
     if n == 0:
@@ -90,15 +121,18 @@ def days_left(date_str):
     return f" ({n} gün kaldı)"
 
 
+def esc(s):
+    return html.escape(str(s), quote=False)
+
+
 def card(title, r, extra_lines=(), footer=None):
-    e = lambda s: html.escape(s, quote=False)
     lines = [
         f"<b>{title}</b>",
         "",
-        f"🏛 <b>{e(r['uni'])}</b>",
-        f"📍 {e(r['city'].title())} · {e(r['fmt'])}",
-        f"📅 Sınav: <b>{e(r['date'])}</b>",
-        f"⏳ Son başvuru: {e(r['deadline'])}{days_left(r['deadline'])}",
+        f"🏛 <b>{esc(r['uni'])}</b>",
+        f"📍 {esc(r['city'].title())} · {esc(r['fmt'])}",
+        f"📅 Sınav: <b>{esc(r['date'])}</b>",
+        f"⏳ Son başvuru: {esc(r['deadline'])}{days_left(r['deadline'])}",
         *extra_lines,
     ]
     if footer:
@@ -107,7 +141,7 @@ def card(title, r, extra_lines=(), footer=None):
 
 
 def message_for(r, old):
-    seats = f"💺 Boş koltuk: <b>{html.escape(str(r['seats']), quote=False)}</b>"
+    seats = f"💺 Boş koltuk: <b>{esc(r['seats'])}</b>"
     if old is None:
         if r["available"]:
             return card("🚨 YENİ BAŞVURU AÇILDI!", r, [seats],
@@ -125,47 +159,127 @@ def message_for(r, old):
     return None
 
 
+# ---------- state ----------
+
+def load_state():
+    if not os.path.exists(STATE):
+        return None
+    with open(STATE, encoding="utf-8") as f:
+        data = json.load(f)
+    if "rows" not in data:  # eski format: sadece satirlar
+        data = {"rows": data}
+    data.setdefault("health", {})
+    return data
+
+
+def save_state(state):
+    with open(STATE, "w", encoding="utf-8") as f:
+        json.dump(state, f, indent=1, ensure_ascii=False, sort_keys=True)
+        f.write("\n")
+
+
+# ---------- one check ----------
+
+def check(state):
+    """Siteyi bir kez kontrol eder, state'i gunceller."""
+    health = state["health"]
+    try:
+        rows = fetch_rows()
+    except Exception as e:
+        print("fetch failed:", e)
+        record_failure(health, e)
+        return
+
+    record_success(health)
+    prev = state["rows"]
+    new_rows = dict(rows)
+    for key, r in rows.items():
+        msg = message_for(r, prev.get(key))
+        if msg and not try_notify(msg):
+            # Bildirim gitmediyse eski durumu koru: sonraki kontrolde tekrar denenir.
+            if key in prev:
+                new_rows[key] = prev[key]
+            else:
+                del new_rows[key]
+    state["rows"] = new_rows
+    print(now().strftime("%H:%M:%S"), "ok,", len(rows), "rows")
+
+
+def record_failure(health, err):
+    if not health.get("fail_since"):
+        health["fail_since"] = now().isoformat(timespec="seconds")
+    since = datetime.fromisoformat(health["fail_since"])
+    if not health.get("alerted") and now() - since >= ALERT_AFTER:
+        mins = int((now() - since).total_seconds() // 60)
+        if try_notify(
+            "<b>⚠️ Takip şu an çalışmıyor</b>\n\n"
+            f"CISIA sayfası {mins} dakikadır okunamıyor.\n"
+            f"Hata: <code>{esc(str(err)[:200])}</code>\n\n"
+            "<i>Bu sürede yeni başvuruları kaçırabilirim, siteyi kendin de kontrol et. "
+            "Düzelince haber vereceğim.</i>",
+            button=False,
+        ):
+            health["alerted"] = True
+
+
+def record_success(health):
+    if health.get("alerted"):
+        since = datetime.fromisoformat(health["fail_since"])
+        mins = int((now() - since).total_seconds() // 60)
+        try_notify(
+            f"<b>✅ Takip tekrar çalışıyor</b>\n\n<i>Yaklaşık {mins} dakika kesinti oldu.</i>",
+            button=False,
+        )
+    health.pop("fail_since", None)
+    health.pop("alerted", None)
+
+
+def daily_summary(state):
+    """Her sabah bir kez: sistemin calistigini ve takip edilen sinavlari bildirir.
+    Bu mesaj gelmezse sistem hic calismiyor demektir."""
+    today = now().date().isoformat()
+    health = state["health"]
+    if now().hour < DAILY_HOUR or health.get("last_daily") == today:
+        return
+    rows = sorted(state["rows"].values(), key=lambda r: (r["date"][6:], r["date"][3:5], r["date"][:2]))
+    lines = ["<b>☀️ Günaydın — takip aktif ✅</b>", ""]
+    if rows:
+        lines.append(f"Takip edilen {len(rows)} sınav:")
+        for r in rows:
+            icon = f"🟢 {esc(r['seats'])} koltuk" if r["available"] else "🔴 kapalı"
+            lines.append(f"• {esc(r['city'].title())} · {esc(r['date'])} — {icon}")
+    else:
+        lines.append("Şu an listede CENT@UNI sınavı yok.")
+    lines += ["", "<i>Yer açılınca anında haber vereceğim.</i>"]
+    if try_notify("\n".join(lines), button=False):
+        health["last_daily"] = today
+
+
+# ---------- main ----------
+
 def main():
     for var in ("TELEGRAM_TOKEN", "TELEGRAM_CHAT_ID"):
         if not os.environ.get(var):
             sys.exit(f"Missing {var}")
 
-    try:
-        rows = fetch_rows()
-    except Exception as e:
-        print("fetch failed:", e)
-        return  # gecici hata, state'e dokunma
-
-    if not rows:
-        print("no rows parsed, skipping")
+    state = load_state()
+    if state is None:
+        # Ilk calisma: bildirim gondermeden mevcut durumu kaydet.
+        state = {"rows": fetch_rows(), "health": {}}
+        save_state(state)
+        print("initialized state")
         return
 
-    first_run = not os.path.exists(STATE)
-    prev = {}
-    if not first_run:
-        with open(STATE, encoding="utf-8") as f:
-            prev = json.load(f)
-
-    new_state = dict(rows)
-    if not first_run:
-        for key, r in rows.items():
-            msg = message_for(r, prev.get(key))
-            if not msg:
-                continue
-            try:
-                notify(msg)
-            except Exception as e:
-                # Bildirim gitmediyse eski durumu koru: sonraki calismada tekrar denenir.
-                print("notify failed:", key, e)
-                if key in prev:
-                    new_state[key] = prev[key]
-                else:
-                    del new_state[key]
-
-    with open(STATE, "w", encoding="utf-8") as f:
-        json.dump(new_state, f, indent=1, ensure_ascii=False, sort_keys=True)
-        f.write("\n")
-    print("ok,", len(rows), "rows")
+    deadline = time.monotonic() + LOOP_SECONDS
+    while True:
+        started = time.monotonic()
+        check(state)
+        if not state["health"].get("fail_since"):
+            daily_summary(state)
+        save_state(state)
+        if started + INTERVAL > deadline:
+            break
+        time.sleep(max(0, started + INTERVAL - time.monotonic()))
 
 
 if __name__ == "__main__":
