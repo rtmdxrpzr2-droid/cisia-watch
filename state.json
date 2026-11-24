@@ -4,14 +4,13 @@
  },
  "rows": {
   "CENT@UNI|Politecnico di Torino|12/01/2027": {
-   "available": true,
+   "available": false,
    "city": "TORINO",
-   "closed": null,
+   "closed": "full",
    "date": "12/01/2027",
    "deadline": "06/01/2027",
    "fmt": "CENT@UNI",
-   "low_alerted": true,
-   "seats": "1",
+   "seats": null,
    "seen_open": true,
    "uni": "Politecnico di Torino"
   },
@@ -22,7 +21,7 @@
    "date": "17/12/2026",
    "deadline": "11/12/2026",
    "fmt": "CENT@UNI",
-   "seats": "26",
+   "seats": "25",
    "seen_open": true,
    "uni": "Universita' degli studi di Messina"
   },
