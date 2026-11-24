@@ -10,7 +10,8 @@
    "date": "12/01/2027",
    "deadline": "06/01/2027",
    "fmt": "CENT@UNI",
-   "seats": "11",
+   "low_alerted": true,
+   "seats": "9",
    "seen_open": true,
    "uni": "Politecnico di Torino"
   },
