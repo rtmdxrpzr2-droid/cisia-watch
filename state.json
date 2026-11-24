@@ -4,13 +4,14 @@
  },
  "rows": {
   "CENT@UNI|Politecnico di Torino|12/01/2027": {
-   "available": false,
+   "available": true,
    "city": "TORINO",
-   "closed": "full",
+   "closed": null,
    "date": "12/01/2027",
    "deadline": "06/01/2027",
    "fmt": "CENT@UNI",
-   "seats": null,
+   "low_alerted": true,
+   "seats": "1",
    "seen_open": true,
    "uni": "Politecnico di Torino"
   },
