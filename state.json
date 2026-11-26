@@ -15,14 +15,13 @@
    "uni": "Politecnico di Torino"
   },
   "CENT@UNI|Sapienza Universita' di Roma - Facolta' di Ingegneria (I3S) - Dipartimento di Scienze statistiche|17/12/2026": {
-   "available": true,
+   "available": false,
    "city": "ROMA",
-   "closed": null,
+   "closed": "full",
    "date": "17/12/2026",
    "deadline": "11/12/2026",
    "fmt": "CENT@UNI",
-   "low_alerted": true,
-   "seats": "1",
+   "seats": null,
    "seen_open": true,
    "uni": "Sapienza Universita' di Roma - Facolta' di Ingegneria (I3S) - Dipartimento di Scienze statistiche"
   },
