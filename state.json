@@ -32,29 +32,9 @@
    "date": "17/12/2026",
    "deadline": "11/12/2026",
    "fmt": "CENT@UNI",
-   "seats": "12",
+   "seats": "13",
    "seen_open": true,
    "uni": "Universita' degli studi di Messina"
-  },
-  "CENT@UNI|Universita' degli studi di Messina|26/11/2026": {
-   "available": false,
-   "city": "MESSINA",
-   "closed": "closed",
-   "date": "26/11/2026",
-   "deadline": "20/11/2026",
-   "fmt": "CENT@UNI",
-   "seats": null,
-   "uni": "Universita' degli studi di Messina"
-  },
-  "CENT@UNI|Universita' degli studi di Trieste|26/11/2026": {
-   "available": false,
-   "city": "TRIESTE",
-   "closed": "closed",
-   "date": "26/11/2026",
-   "deadline": "20/11/2026",
-   "fmt": "CENT@UNI",
-   "seats": null,
-   "uni": "Universita' degli studi di Trieste"
   }
  }
 }
